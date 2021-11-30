@@ -41,8 +41,8 @@ func NewManager(namespace string) (manager.Manager, error) {
 func SetupEndpointController(mgr manager.Manager, monitor *xds.MonitorServer, logger *logger.Std, snapshot *xds.Snapshot, proxyIP string, portMin, portMax uint32) error {
 	controller := &EndpointController{
 		Client:   mgr.GetClient(),
-		Logger: logger,
-		monitor: monitor,
+		Logger:   logger,
+		monitor:  monitor,
 		snapshot: snapshot,
 		portsMap: alloc.NewKeys(portMin, portMax),
 		proxyIP:  proxyIP,
@@ -54,9 +54,9 @@ func SetupEndpointController(mgr manager.Manager, monitor *xds.MonitorServer, lo
 
 type EndpointController struct {
 	client.Client
-	Logger *logger.Std
+	Logger   *logger.Std
 	snapshot *xds.Snapshot
-	monitor *xds.MonitorServer
+	monitor  *xds.MonitorServer
 	portsMap *alloc.Keys
 	proxyIP  string
 }
@@ -83,7 +83,6 @@ func (c *EndpointController) removeEndpoints(svc string) {
 	c.snapshot.RemoveClusterEndpoints(svc)
 	c.snapshot.RemoveCluster(svc)
 }
-
 
 func (c *EndpointController) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 

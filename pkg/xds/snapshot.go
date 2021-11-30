@@ -100,7 +100,7 @@ func (s *Snapshot) setSnapshot() (err error) {
 		[]types.Resource{}, // extensions
 	)
 	if err = snapshot.Consistent(); err == nil {
-		err = s.cache.SetSnapshot(context.Background(),s.nodeID, snapshot)
+		err = s.cache.SetSnapshot(context.Background(), s.nodeID, snapshot)
 	}
 	if err == nil {
 		s.ver = ver
