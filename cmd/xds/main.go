@@ -36,7 +36,7 @@ func main() {
 		l.Fatalf("clientset error %+v", err)
 	}
 
-	if err = kube.SetupEndpointController(manager, server.Snapshot, conf.ProxyAddr, conf.ProxyPortMin, conf.ProxyPortMax); err != nil {
+	if err = kube.SetupEndpointController(manager, l, server.Snapshot, conf.ProxyAddr, conf.ProxyPortMin, conf.ProxyPortMax); err != nil {
 		l.Fatalf("controller error %+v", err)
 	}
 

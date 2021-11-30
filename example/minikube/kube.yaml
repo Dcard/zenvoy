@@ -2,12 +2,13 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: xds
+  name: zenvoy-xds
+  namespace: projectcontour
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
-  name: xds
+  name: zenvoy-xds
 rules:
   - apiGroups: [ "" ]
     resources: [ "endpoints" ]
@@ -15,38 +16,43 @@ rules:
   - apiGroups: [ "apps" ]
     resources: [ "deployments/scale" ]
     verbs: [ "get", "update" ]
+  - apiGroups: [ "projectcontour.io" ]
+    resources: [ "httpproxies" ]
+    verbs: [ "get", "list", "watch" ]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
-  name: xds
+  name: zenvoy-xds
 subjects:
   - kind: ServiceAccount
-    name: xds
+    name: zenvoy-xds
+    namespace: projectcontour
 roleRef:
-  kind: Role
-  name: xds
+  kind: ClusterRole
+  name: zenvoy-xds
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: zenvoy-proxy
+  namespace: projectcontour
   labels:
-    app: zenvoy-proxy
+    name: zenvoy-proxy
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: zenvoy-proxy
+      name: zenvoy-proxy
   template:
     metadata:
       labels:
-        app: zenvoy-proxy
+        name: zenvoy-proxy
     spec:
       containers:
         - name: proxy
-          image: rueian/zenvoy-proxy:latest
+          image: gcr.io/dcard-staging/zenvoy-proxy:latest
           imagePullPolicy: Always
           securityContext:
             capabilities:
@@ -68,67 +74,46 @@ spec:
       volumes:
         - name: envoy-config
           configMap:
-            name: envoy
+            name: zenvoy-envoy
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: zenvoy-xds
+  namespace: projectcontour
   labels:
-    app: zenvoy-xds
+    name: zenvoy-xds
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: zenvoy-xds
+      name: zenvoy-xds
   template:
     metadata:
       labels:
-        app: zenvoy-xds
+        name: zenvoy-xds
     spec:
-      serviceAccountName: xds
+      serviceAccountName: zenvoy-xds
       containers:
         - name: xds
-          image: rueian/zenvoy-xds:latest
+          image: gcr.io/dcard-staging/zenvoy-xds:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 18000
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: zenvoy-echo
-  labels:
-    app: zenvoy-echo
-spec:
-  replicas: 0
-  selector:
-    matchLabels:
-      app: zenvoy-echo
-  template:
-    metadata:
-      labels:
-        app: zenvoy-echo
-    spec:
-      containers:
-        - name: echo
-          image: rueian/zenvoy-echo:latest
-          imagePullPolicy: Never
-          ports:
-            - containerPort: 8080
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: zenvoy-proxy
+  namespace: projectcontour
 spec:
   type: ClusterIP
   selector:
-    app: zenvoy-proxy
+    name: zenvoy-proxy
   ports:
     - protocol: TCP
       name: http
-      port: 10000
+      port: 80
       targetPort: 10000
     - protocol: TCP
       name: admin
@@ -140,10 +125,11 @@ apiVersion: v1
 kind: Service
 metadata:
   name: zenvoy-xds
+  namespace: projectcontour
 spec:
   type: ClusterIP
   selector:
-    app: zenvoy-xds
+    name: zenvoy-xds
   ports:
     - protocol: TCP
       name: tcp
@@ -151,24 +137,10 @@ spec:
       targetPort: 18000
 ---
 apiVersion: v1
-kind: Service
-metadata:
-  name: zenvoy-echo
-spec:
-  type: ClusterIP
-  selector:
-    app: zenvoy-echo
-  ports:
-    - protocol: TCP
-      name: http
-      port: 8080
-      targetPort: 8080
-
----
-apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: envoy
+  name: zenvoy-envoy
+  namespace: projectcontour
 data:
   envoy.yaml: |
     admin:

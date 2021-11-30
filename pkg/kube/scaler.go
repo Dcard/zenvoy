@@ -5,6 +5,7 @@ import (
 
 	"github.com/envoyproxy/go-control-plane/pkg/log"
 	"golang.org/x/sync/singleflight"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -36,6 +37,9 @@ type Scaler struct {
 
 func (s *Scaler) ScaleToZero(cluster string) {
 	if err := s.Scale(context.Background(), cluster, ScaleToZero); err != nil {
+		if apierrors.IsNotFound(err) {
+			return
+		}
 		s.logger.Errorf("failed to xds scaled deploy/%s to zero: %v", cluster, err)
 	} else {
 		s.logger.Infof("xds scaled deploy/%s to zero", cluster)
@@ -44,6 +48,9 @@ func (s *Scaler) ScaleToZero(cluster string) {
 
 func (s *Scaler) ScaleFromZero(cluster string) {
 	if err := s.Scale(context.Background(), cluster, ScaleFromZero); err != nil {
+		if apierrors.IsNotFound(err) {
+			return
+		}
 		s.logger.Errorf("failed to xds scaled deploy/%s from zero: %v", cluster, err)
 	} else {
 		s.logger.Infof("xds scaled deploy/%s from zero", cluster)
