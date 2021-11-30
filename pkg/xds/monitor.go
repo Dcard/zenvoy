@@ -78,6 +78,9 @@ func (s *MonitorServer) processCounter(m *prom.MetricFamily) {
 		if parts := strings.Split(mn, "."); len(parts) == 3 {
 			name := parts[1]
 			curr := Stat{Val: *m.Metric[0].Counter.Value, Tms: *m.Metric[0].TimestampMs}
+			if _, ok := s.clusters[name]; !ok {
+				s.clusters[name] = curr
+			}
 			if curr.Val == s.clusters[name].Val {
 				return
 			}
