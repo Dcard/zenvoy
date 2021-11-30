@@ -38,10 +38,11 @@ func NewManager(namespace string) (manager.Manager, error) {
 	return manager.New(conf, manager.Options{Scheme: scheme, Namespace: namespace})
 }
 
-func SetupEndpointController(mgr manager.Manager, logger *logger.Std, snapshot *xds.Snapshot, proxyIP string, portMin, portMax uint32) error {
+func SetupEndpointController(mgr manager.Manager, monitor *xds.MonitorServer, logger *logger.Std, snapshot *xds.Snapshot, proxyIP string, portMin, portMax uint32) error {
 	controller := &EndpointController{
 		Client:   mgr.GetClient(),
 		Logger: logger,
+		monitor: monitor,
 		snapshot: snapshot,
 		portsMap: alloc.NewKeys(portMin, portMax),
 		proxyIP:  proxyIP,
@@ -55,19 +56,41 @@ type EndpointController struct {
 	client.Client
 	Logger *logger.Std
 	snapshot *xds.Snapshot
+	monitor *xds.MonitorServer
 	portsMap *alloc.Keys
 	proxyIP  string
 }
+
+func (c *EndpointController) setEndpoints(svc, fqdn, prefix string, available []xds.Endpoint) error {
+	if len(available) == 0 {
+		port, err := c.portsMap.Acquire(svc)
+		if err != nil {
+			return err
+		}
+		available = append(available, xds.Endpoint{IP: c.proxyIP, Port: port})
+	}
+	c.monitor.TrackCluster(svc)
+	c.snapshot.SetCluster(svc)
+	c.snapshot.SetClusterRoute(svc, fqdn, prefix)
+	c.snapshot.SetClusterEndpoints(svc, available...)
+	return nil
+}
+
+func (c *EndpointController) removeEndpoints(svc string) {
+	c.monitor.RemoveCluster(svc)
+	c.portsMap.Release(svc)
+	c.snapshot.RemoveClusterRoute(svc)
+	c.snapshot.RemoveClusterEndpoints(svc)
+	c.snapshot.RemoveCluster(svc)
+}
+
 
 func (c *EndpointController) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 
 	proxyDef := &contourv1.HTTPProxy{}
 	if err := c.Get(ctx, req.NamespacedName, proxyDef); err != nil {
 		if apierrors.IsNotFound(err) {
-			c.portsMap.Release(req.Name)
-			c.snapshot.RemoveClusterRoute(req.Name)
-			c.snapshot.RemoveClusterEndpoints(req.Name)
-			c.snapshot.RemoveCluster(req.Name)
+			c.removeEndpoints(req.Name)
 			return reconcile.Result{}, nil
 		}
 		c.Logger.Errorf("Fail to get HTTPProxy %s %s: %v", req.Namespace, req.Name, err)
@@ -75,20 +98,14 @@ func (c *EndpointController) Reconcile(ctx context.Context, req reconcile.Reques
 	}
 
 	if proxyDef.Spec.VirtualHost == nil || proxyDef.Spec.VirtualHost.Fqdn == "" {
-		c.portsMap.Release(req.Name)
-		c.snapshot.RemoveClusterRoute(req.Name)
-		c.snapshot.RemoveClusterEndpoints(req.Name)
-		c.snapshot.RemoveCluster(req.Name)
+		c.removeEndpoints(req.Name)
 		return reconcile.Result{}, nil
 	}
 
 	endpoints := &v1.Endpoints{}
 	if err := c.Get(ctx, req.NamespacedName, endpoints); err != nil {
 		if apierrors.IsNotFound(err) {
-			c.portsMap.Release(req.Name)
-			c.snapshot.RemoveClusterRoute(req.Name)
-			c.snapshot.RemoveClusterEndpoints(req.Name)
-			c.snapshot.RemoveCluster(req.Name)
+			c.removeEndpoints(req.Name)
 			return reconcile.Result{}, nil
 		} else {
 			c.Logger.Errorf("Fail to get Endpoints %s %s: %v", req.Namespace, req.Name, err)
@@ -103,18 +120,10 @@ func (c *EndpointController) Reconcile(ctx context.Context, req reconcile.Reques
 			available = append(available, xds.Endpoint{IP: addr.IP, Port: uint32(port)})
 		}
 	}
-
-	if len(available) == 0 {
-		port, err := c.portsMap.Acquire(req.Name)
-		if err != nil {
-			return reconcile.Result{Requeue: true}, nil
-		}
-		available = append(available, xds.Endpoint{IP: c.proxyIP, Port: port})
+	if err := c.setEndpoints(req.Name, proxyDef.Spec.VirtualHost.Fqdn, "", available); err != nil {
+		c.Logger.Errorf("Fail to setEndpoints: %v", err)
+		return reconcile.Result{Requeue: true}, nil
 	}
-
-	c.snapshot.SetCluster(req.Name)
-	c.snapshot.SetClusterRoute(req.Name, proxyDef.Spec.VirtualHost.Fqdn, "")
-	c.snapshot.SetClusterEndpoints(req.Name, available...)
 	return reconcile.Result{}, nil
 }
 

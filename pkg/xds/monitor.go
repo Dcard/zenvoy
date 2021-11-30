@@ -56,6 +56,20 @@ type MonitorServer struct {
 	scaler   Scaler
 }
 
+func (s *MonitorServer) TrackCluster(cluster string) {
+	s.mu.Lock()
+	if _, ok := s.clusters[cluster]; !ok {
+		s.clusters[cluster] = Stat{Tms: time.Now().UnixNano() / 1e6}
+	}
+	s.mu.Unlock()
+}
+
+func (s *MonitorServer) RemoveCluster(cluster string) {
+	s.mu.Lock()
+	delete(s.clusters, cluster)
+	s.mu.Unlock()
+}
+
 func (s *MonitorServer) StreamMetrics(server metricsservice.MetricsService_StreamMetricsServer) error {
 	defer server.SendAndClose(&metricsservice.StreamMetricsResponse{})
 	for {
