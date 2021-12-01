@@ -24,7 +24,7 @@ func main() {
 		l.Fatalf("config error %+v", err)
 	}
 
-	server := xds.NewServer(l, conf.XDSNodeID, xds.Debug(l.Debug))
+	server := xds.NewServer(l, conf.XDSNodeID, conf, xds.Debug(l.Debug))
 
 	manager, err := kube.NewManager(conf.KubeNamespace)
 	if err != nil {

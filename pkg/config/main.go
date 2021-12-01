@@ -13,8 +13,9 @@ type XDS struct {
 	ProxyPortMin     uint32        `envconfig:"PROXY_PORT_MIN" default:"20000"`
 	ProxyPortMax     uint32        `envconfig:"PROXY_PORT_MAX" default:"32767"`
 	KubeNamespace    string        `envconfig:"KUBE_NAMESPACE" default:"default"`
-	ScaleToZeroAfter time.Duration `envconfig:"SCALE_TO_ZERO_AFTER" default:"5m"`
+	ScaleToZeroAfter time.Duration `envconfig:"SCALE_TO_ZERO_AFTER" default:"20m"`
 	ScaleToZeroCheck time.Duration `envconfig:"SCALE_TO_ZERO_CHECK" default:"30s"`
+	EnvoyReadTimeout time.Duration `envconfig:"ENVOY_READ_TIMEOUT" default:"2m"`
 }
 
 type Proxy struct {
