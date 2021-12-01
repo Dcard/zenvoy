@@ -61,7 +61,7 @@ type EndpointController struct {
 	proxyIP  string
 }
 
-func (c *EndpointController) setEndpoints(svc, fqdn, prefix string, available []xds.Endpoint) error {
+func (c *EndpointController) setEndpoints(svc, prefix string, fqdn []string, available []xds.Endpoint) error {
 	if len(available) == 0 {
 		port, err := c.portsMap.Acquire(svc)
 		if err != nil {
@@ -86,8 +86,8 @@ func (c *EndpointController) removeEndpoints(svc string) {
 
 func (c *EndpointController) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 
-	proxyDef := &contourv1.HTTPProxy{}
-	if err := c.Get(ctx, req.NamespacedName, proxyDef); err != nil {
+	def := &contourv1.HTTPProxy{}
+	if err := c.Get(ctx, req.NamespacedName, def); err != nil {
 		if apierrors.IsNotFound(err) {
 			c.removeEndpoints(req.Name)
 			return reconcile.Result{}, nil
@@ -96,7 +96,7 @@ func (c *EndpointController) Reconcile(ctx context.Context, req reconcile.Reques
 		return reconcile.Result{}, err
 	}
 
-	if proxyDef.Spec.VirtualHost == nil || proxyDef.Spec.VirtualHost.Fqdn == "" {
+	if def.Spec.VirtualHost == nil || def.Spec.VirtualHost.Fqdn == "" {
 		c.removeEndpoints(req.Name)
 		return reconcile.Result{}, nil
 	}
@@ -119,7 +119,10 @@ func (c *EndpointController) Reconcile(ctx context.Context, req reconcile.Reques
 			available = append(available, xds.Endpoint{IP: addr.IP, Port: uint32(port)})
 		}
 	}
-	if err := c.setEndpoints(req.Name, proxyDef.Spec.VirtualHost.Fqdn, "", available); err != nil {
+	if err := c.setEndpoints(req.Name, "", []string{
+		def.Spec.VirtualHost.Fqdn,
+		strings.ReplaceAll(def.Spec.VirtualHost.Fqdn, ".dcard.", ".dtto."),
+	}, available); err != nil {
 		c.Logger.Errorf("Fail to setEndpoints: %v", err)
 		return reconcile.Result{Requeue: true}, nil
 	}

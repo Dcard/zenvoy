@@ -81,10 +81,10 @@ func makeEndpoints(clusterName string, eps ...Endpoint) *endpoint.ClusterLoadAss
 	}
 }
 
-func makeVirtualHostRoutes(clusterName string, domain string, prefix string, timeout time.Duration) *route.VirtualHost {
+func makeVirtualHostRoutes(clusterName string, domain []string, prefix string, timeout time.Duration) *route.VirtualHost {
 	return &route.VirtualHost{
 		Name:    clusterName,
-		Domains: []string{domain},
+		Domains: domain,
 		Routes: []*route.Route{{
 			Match: &route.RouteMatch{
 				PathSpecifier: &route.RouteMatch_Prefix{

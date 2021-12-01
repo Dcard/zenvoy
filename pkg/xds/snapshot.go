@@ -53,7 +53,7 @@ func (s *Snapshot) RemoveCluster(name string) error {
 	return s.setSnapshot()
 }
 
-func (s *Snapshot) SetClusterRoute(name, domain, prefix string) error {
+func (s *Snapshot) SetClusterRoute(name string, domain []string, prefix string) error {
 	routes := makeVirtualHostRoutes(name, domain, prefix, s.config.EnvoyReadTimeout)
 	if original, ok := s.vhs[name]; ok && proto.Equal(original, routes) {
 		return nil
