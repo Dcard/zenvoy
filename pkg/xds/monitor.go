@@ -98,7 +98,9 @@ func (s *MonitorServer) processCounter(m *prom.MetricFamily) {
 			if curr.Val == s.clusters[name].Val {
 				return
 			}
-			if curr.Val != 0 {
+			if curr.Val == 0 {
+				curr.Tms = s.clusters[name].Tms
+			} else if curr.Tms != 0 {
 				go s.scaler.ScaleFromZero(name)
 			}
 			s.clusters[name] = curr
