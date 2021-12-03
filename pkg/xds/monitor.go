@@ -15,6 +15,7 @@ type Scaler interface {
 }
 
 type Stat struct {
+	Eps int
 	Val float64
 	Tms int64
 }
@@ -38,9 +39,7 @@ func NewMonitorServer(scaler Scaler, options MonitorOptions) *MonitorServer {
 
 			s.mu.Lock()
 			for cluster, stat := range s.clusters {
-				if stat.Tms != 0 && now-stat.Tms > options.ScaleToZeroAfter.Milliseconds() {
-					stat.Tms = 0
-					s.clusters[cluster] = stat
+				if stat.Eps > 0 && now-stat.Tms > options.ScaleToZeroAfter.Milliseconds() {
 					go scaler.ScaleToZero(cluster)
 				}
 			}
@@ -56,10 +55,13 @@ type MonitorServer struct {
 	scaler   Scaler
 }
 
-func (s *MonitorServer) TrackCluster(cluster string) {
+func (s *MonitorServer) TrackCluster(cluster string, endpoints int) {
 	s.mu.Lock()
-	if _, ok := s.clusters[cluster]; !ok {
-		s.clusters[cluster] = Stat{Tms: time.Now().UnixNano() / 1e6}
+	if prev, ok := s.clusters[cluster]; ok {
+		prev.Eps = endpoints
+		s.clusters[cluster] = prev
+	} else {
+		s.clusters[cluster] = Stat{Eps: endpoints, Tms: time.Now().UnixNano() / 1e6}
 	}
 	s.mu.Unlock()
 }
@@ -91,19 +93,20 @@ func (s *MonitorServer) processCounter(m *prom.MetricFamily) {
 	if mn := *m.Name; strings.HasSuffix(mn, TriggerMetric) {
 		if parts := strings.Split(mn, "."); len(parts) == 3 {
 			name := parts[1]
-			curr := Stat{Val: *m.Metric[0].Counter.Value, Tms: *m.Metric[0].TimestampMs}
-			if _, ok := s.clusters[name]; !ok {
-				s.clusters[name] = curr
+			prev := s.clusters[name]
+
+			val := *m.Metric[0].Counter.Value
+			tms := *m.Metric[0].TimestampMs
+
+			if prev.Val != val {
+				prev.Val = val
+				prev.Tms = tms
+				if val != 0 {
+					go s.scaler.ScaleFromZero(name)
+				}
 			}
-			if curr.Val == s.clusters[name].Val {
-				return
-			}
-			if curr.Val == 0 {
-				curr.Tms = s.clusters[name].Tms
-			} else if curr.Tms != 0 {
-				go s.scaler.ScaleFromZero(name)
-			}
-			s.clusters[name] = curr
+
+			s.clusters[name] = prev
 		}
 	}
 }

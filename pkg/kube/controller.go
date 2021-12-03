@@ -62,6 +62,7 @@ type EndpointController struct {
 }
 
 func (c *EndpointController) setEndpoints(svc, prefix string, fqdn []string, available []xds.Endpoint) error {
+	c.monitor.TrackCluster(svc, len(available))
 	if len(available) == 0 {
 		port, err := c.portsMap.Acquire(svc)
 		if err != nil {
@@ -69,7 +70,6 @@ func (c *EndpointController) setEndpoints(svc, prefix string, fqdn []string, ava
 		}
 		available = append(available, xds.Endpoint{IP: c.proxyIP, Port: port})
 	}
-	c.monitor.TrackCluster(svc)
 	c.snapshot.SetCluster(svc)
 	c.snapshot.SetClusterRoute(svc, fqdn, prefix)
 	c.snapshot.SetClusterEndpoints(svc, available...)
