@@ -61,19 +61,11 @@ type EndpointController struct {
 	proxyIP  string
 }
 
-func (c *EndpointController) setEndpoints(svc, prefix string, fqdn []string, available []xds.Endpoint) error {
-	c.monitor.TrackCluster(svc, len(available))
-	if len(available) == 0 {
-		port, err := c.portsMap.Acquire(svc)
-		if err != nil {
-			return err
-		}
-		available = append(available, xds.Endpoint{IP: c.proxyIP, Port: port})
-	}
+func (c *EndpointController) setEndpoints(svc, prefix string, fqdn []string, available []xds.Endpoint, count int) {
+	c.monitor.TrackCluster(svc, count)
 	c.snapshot.SetCluster(svc)
 	c.snapshot.SetClusterRoute(svc, fqdn, prefix)
 	c.snapshot.SetClusterEndpoints(svc, available...)
-	return nil
 }
 
 func (c *EndpointController) removeEndpoints(svc string) {
@@ -112,20 +104,27 @@ func (c *EndpointController) Reconcile(ctx context.Context, req reconcile.Reques
 		}
 	}
 
+	var count int
 	var available []xds.Endpoint
 	for _, sub := range endpoints.Subsets {
 		port := c.findEndpointPort(endpoints, sub)
 		for _, addr := range sub.Addresses {
 			available = append(available, xds.Endpoint{IP: addr.IP, Port: uint32(port)})
 		}
+		count += len(sub.Addresses) + len(sub.NotReadyAddresses)
 	}
-	if err := c.setEndpoints(req.Name, "", []string{
+	if len(available) == 0 {
+		port, err := c.portsMap.Acquire(req.Name)
+		if err != nil {
+			c.Logger.Errorf("Fail to acquire port: %v", err)
+			return reconcile.Result{Requeue: true}, nil
+		}
+		available = append(available, xds.Endpoint{IP: c.proxyIP, Port: port})
+	}
+	c.setEndpoints(req.Name, "", []string{
 		def.Spec.VirtualHost.Fqdn,
 		strings.ReplaceAll(def.Spec.VirtualHost.Fqdn, ".dcard.", ".dtto."),
-	}, available); err != nil {
-		c.Logger.Errorf("Fail to setEndpoints: %v", err)
-		return reconcile.Result{Requeue: true}, nil
-	}
+	}, available, count)
 	return reconcile.Result{}, nil
 }
 
