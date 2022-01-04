@@ -123,9 +123,13 @@ func (c *EndpointController) Reconcile(ctx context.Context, req reconcile.Reques
 	}
 	c.setEndpoints(req.Name, "", []string{
 		def.Spec.VirtualHost.Fqdn,
-		strings.ReplaceAll(def.Spec.VirtualHost.Fqdn, ".dcard.", ".dtto."),
+		dttoDomain(def.Spec.VirtualHost.Fqdn),
 	}, available, count)
 	return reconcile.Result{}, nil
+}
+
+func dttoDomain(domain string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(domain, ".dcard.tw", ".dtto.com"), ".dcard.io", ".dtto.io")
 }
 
 func (c *EndpointController) findEndpointPort(endpoints *v1.Endpoints, subset v1.EndpointSubset) int32 {
