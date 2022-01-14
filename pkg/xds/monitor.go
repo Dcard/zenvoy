@@ -61,6 +61,7 @@ func (s *MonitorServer) TrackCluster(cluster string, endpoints int) {
 		prev.Eps = endpoints
 		s.clusters[cluster] = prev
 	} else {
+		go s.scaler.ScaleToZero(cluster) // initial scale down
 		s.clusters[cluster] = Stat{Eps: endpoints, Tms: time.Now().UnixNano() / 1e6}
 	}
 	s.mu.Unlock()
