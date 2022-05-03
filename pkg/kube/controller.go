@@ -79,13 +79,15 @@ func (c *EndpointController) removeEndpoints(svc string) {
 
 func (c *EndpointController) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 
+	c.Logger.Infof("Reconcile Endpoints %s %s", req.Namespace, req.Name)
+
 	endpoints := &v1.Endpoints{}
 	if err := c.Get(ctx, req.NamespacedName, endpoints); err != nil {
+		c.Logger.Errorf("Fail to get Endpoints %s %s: %v", req.Namespace, req.Name, err)
 		if apierrors.IsNotFound(err) {
 			c.removeEndpoints(req.Name)
 			return reconcile.Result{}, nil
 		} else {
-			c.Logger.Errorf("Fail to get Endpoints %s %s: %v", req.Namespace, req.Name, err)
 			return reconcile.Result{Requeue: true}, nil
 		}
 	}
