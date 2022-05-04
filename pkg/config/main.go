@@ -15,7 +15,7 @@ type XDS struct {
 	KubeNamespace    string        `envconfig:"KUBE_NAMESPACE" default:"default"`
 	ScaleToZeroAfter time.Duration `envconfig:"SCALE_TO_ZERO_AFTER" default:"60m"`
 	ScaleToZeroCheck time.Duration `envconfig:"SCALE_TO_ZERO_CHECK" default:"30s"`
-	EnvoyReadTimeout time.Duration `envconfig:"ENVOY_READ_TIMEOUT" default:"2m"`
+	EnvoyReadTimeout time.Duration `envconfig:"ENVOY_READ_TIMEOUT" default:"10m"`
 }
 
 type Proxy struct {
