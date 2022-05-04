@@ -3,7 +3,6 @@ package kube
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/rueian/zenvoy/pkg/logger"
 	v1 "k8s.io/api/core/v1"
@@ -14,8 +13,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	contourv1 "github.com/projectcontour/contour/apis/projectcontour/v1"
 	"github.com/rueian/zenvoy/pkg/alloc"
@@ -50,6 +51,7 @@ func SetupEndpointController(mgr manager.Manager, monitor *xds.MonitorServer, lo
 	}
 	return builder.ControllerManagedBy(mgr).
 		For(&v1.Endpoints{}).
+		Watches(&source.Kind{Type: &contourv1.HTTPProxy{}}, &handler.EnqueueRequestForObject{}).
 		Complete(controller)
 }
 
@@ -93,20 +95,13 @@ func (c *EndpointController) Reconcile(ctx context.Context, req reconcile.Reques
 	}
 
 	def := &contourv1.HTTPProxy{}
-	for retry := 2; retry >= 0; retry-- {
-		if err := c.Get(ctx, req.NamespacedName, def); err != nil {
-			c.Logger.Errorf("Fail to get HTTPProxy %s %s: %v", req.Namespace, req.Name, err)
-			if apierrors.IsNotFound(err) {
-				if retry > 0 {
-					time.Sleep(time.Second) // delay retry of getting HTTPProxy record
-					continue
-				}
-				c.removeEndpoints(req.Name)
-				return reconcile.Result{}, nil
-			}
-			return reconcile.Result{Requeue: true}, nil
+	if err := c.Get(ctx, req.NamespacedName, def); err != nil {
+		c.Logger.Errorf("Fail to get HTTPProxy %s %s: %v", req.Namespace, req.Name, err)
+		if apierrors.IsNotFound(err) {
+			c.removeEndpoints(req.Name)
+			return reconcile.Result{}, nil
 		}
-		break
+		return reconcile.Result{Requeue: true}, nil
 	}
 
 	if def.Spec.VirtualHost == nil || def.Spec.VirtualHost.Fqdn == "" {
